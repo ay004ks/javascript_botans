@@ -177,14 +177,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // 発生位置（角度）を完全ランダムにする（コピーはランダム方向から出現）
         const angle = Math.random() * Math.PI * 2;
 
-        // 終点は要素の周辺（要素と重ならないように半径を確保）
-        // ここを縮めて、コピーがターゲットにより近づけるようにする
-        const endRadius = Math.max(rect.width, rect.height) / 2 + 10 + Math.random() * 8;
+        // 発生位置は直前の状態（startOffset 30..60）を維持しつつ、到達位置を中央により近づける
+        const endRadiusBase = Math.max(rect.width, rect.height) / 6 + 1; // さらに中心寄り
+        const endRadiusJitter = Math.random() * 2; // 小さなジッター
+        const endRadius = endRadiusBase + endRadiusJitter;
         const targetX = endX + Math.cos(angle) * endRadius;
         const targetY = endY + Math.sin(angle) * endRadius;
 
-        // 開始位置はその外側から（遠くから集まるように）
-        const startRadius = endRadius + 80 + Math.random() * 60;
+        // 発生位置（開始位置）を中心から離す（例: 80..140 のレンジ）
+        const startOffsetMin = 80;
+        const startOffsetMax = 140;
+        const startRadius = endRadius + startOffsetMin + Math.random() * (startOffsetMax - startOffsetMin);
         const startX = endX + Math.cos(angle) * startRadius;
         const startY = endY + Math.sin(angle) * startRadius;
 
@@ -240,10 +243,16 @@ document.addEventListener('DOMContentLoaded', function() {
         el._splitTimeout = null;
       }
 
-      // 元要素を非表示にする
+      // 要素の座標を取得してサイズを固定（レイアウトずれ防止）
+      const rect = el.getBoundingClientRect();
+      el.style.width = rect.width + 'px';
+      el.style.height = rect.height + 'px';
+      el.style.boxSizing = 'border-box';
+      el.style.display = el.style.display || 'inline-block';
+
+      // 元要素を非表示にする（表示だけ消す、レイアウトは維持）
       el.style.opacity = '0';
 
-      const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
       const txt = el.textContent;
@@ -295,12 +304,171 @@ document.addEventListener('DOMContentLoaded', function() {
             el.classList.remove('fade-in');
             void el.offsetWidth;
             el.classList.add('fade-in');
-            const onAnimEnd = () => { el.classList.remove('fade-in'); el.style.opacity = ''; el.removeEventListener('animationend', onAnimEnd); };
+            const onAnimEnd = () => { 
+              el.classList.remove('fade-in'); 
+              el.style.opacity = '';
+              // 復帰時に固定していたサイズを解除して、通常のレスポンシブに戻す
+              el.style.width = '';
+              el.style.height = '';
+              el.style.boxSizing = '';
+              el.style.display = '';
+              el.removeEventListener('animationend', onAnimEnd); 
+            };
             el.addEventListener('animationend', onAnimEnd);
             delete el._splitTimeout;
           }, 2000);
         });
       });
+    });
+  }
+
+  // --- 追加: #bouncing-text のクリック処理（上下に弾みながら画面外に移動） ---
+  const bouncing = document.getElementById('bouncing-text');
+  if (bouncing) {
+    bouncing.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const el = this;
+
+      // 連続実行防止
+      if (el._bounceTimeout) {
+        clearTimeout(el._bounceTimeout);
+        delete el._bounceTimeout;
+      }
+      // 既に残っているクローンを削除して重複を防ぐ
+      document.querySelectorAll('.bouncing-clone').forEach(c => c.remove());
+
+      // 固定サイズでレイアウトずれを防ぐ
+      const rect = el.getBoundingClientRect();
+      el.style.width = rect.width + 'px';
+      el.style.height = rect.height + 'px';
+      el.style.boxSizing = 'border-box';
+      el.style.display = el.style.display || 'inline-block';
+
+      // 元を見えなくする（画面外から戻るまで表示させない）
+      el.style.opacity = '0';
+      el.classList.add('temp-invisible');
+
+      // クローンを作成してアニメーション
+      const clone = document.createElement('div');
+      clone.className = 'bouncing-clone';
+      clone.style.left = (rect.left + rect.width / 2) + 'px';
+      clone.style.top = (rect.top + rect.height / 2) + 'px';
+      clone.style.color = window.getComputedStyle(el).color;
+      clone.style.font = window.getComputedStyle(el).font;
+      clone.innerHTML = `<span>${el.textContent}</span>`;
+      document.body.appendChild(clone);
+
+      // 総移動距離（左へオフスクリーン）
+      const endLeft = -120;
+      const startLeft = rect.left + rect.width / 2;
+      const totalMove = endLeft - startLeft; // negative => move left
+
+      // アニメーション: 左へ一定速度で移動しつつ、スムーズに上下に弾ませる（サンプリング生成）
+      const duration = 2000; // 6秒
+      // バウンス回数をここで調整
+      const bounceCount = 6;
+      const frames = [];
+      const baseAmp = 28;
+      // サンプル数（多いほど滑らか） - bounceCount に応じて増やす
+      const sampleCount = Math.max(60, bounceCount * 20);
+      for (let s = 0; s <= sampleCount; s++) {
+        const t = s / sampleCount; // 0..1
+        const leftPos = startLeft + totalMove * t;
+        // 垂直方向は sin 波で滑らかな上下運動（減衰なし）
+        // 最初の挙動を上方向にするために符号を反転する
+        const vertical = -Math.sin(Math.PI * bounceCount * t) * baseAmp;
+        const topPos = rect.top + rect.height / 2 + vertical;
+        frames.push({ offset: t, left: leftPos + 'px', top: topPos + 'px', transform: 'translate(-50%, -50%)' });
+      }
+      // 最後はオフスクリーンへ落とす（下に少し落として終わる）
+      frames.push({ offset: 1, left: endLeft + 'px', top: (rect.top + rect.height / 2 + 40) + 'px', transform: 'translate(-50%, -50%)' });
+
+      // 横移動の速度減衰を消すためイージングを linear に設定
+      const endHold = 600; // 終了時に一瞬止める時間（ms）
+      const anim = clone.animate(frames, { duration, easing: 'linear' });
+
+      anim.onfinish = () => {
+        // 最後の位置で短く停止してから、右側から再入場して元の位置に戻るシーケンスを実行
+        setTimeout(() => {
+          // 現在のクローンを削除
+          clone.remove();
+
+          // 右側オフスクリーンから入ってくるクローンを作成
+          const returnClone = document.createElement('div');
+          returnClone.className = 'bouncing-clone';
+          const startRight = window.innerWidth + 120;
+          const targetLeft = startLeft; // 元の中心へ戻す
+          returnClone.style.left = startRight + 'px';
+          returnClone.style.top = (rect.top + rect.height / 2) + 'px';
+          returnClone.style.color = window.getComputedStyle(el).color;
+          returnClone.style.font = window.getComputedStyle(el).font;
+          returnClone.innerHTML = `<span>${el.textContent}</span>`;
+          document.body.appendChild(returnClone);
+
+          // 元の要素を戻ってくる間に可視化しておく（透明→不透明で自然に見える）
+          el.classList.remove('temp-invisible');
+          el.style.opacity = '0';
+          if (el._returnOpacityAnim) {
+            el._returnOpacityAnim.cancel();
+            delete el._returnOpacityAnim;
+          }
+          // duration と同じ長さで漸次表示させる（停留時間も考慮して持続させる）
+          el._returnOpacityAnim = el.animate([
+            { opacity: 0 }, { opacity: 1 }
+          ], { duration: duration + endHold, easing: 'linear', fill: 'forwards' });
+
+          // 右から入るフレームを生成（左へ移動）
+          const framesReturn = [];
+          for (let s = 0; s <= sampleCount; s++) {
+            const t2 = s / sampleCount;
+            const leftPos2 = startRight + (targetLeft - startRight) * t2;
+            const vertical2 = -Math.sin(Math.PI * bounceCount * t2) * baseAmp;
+            const topPos2 = rect.top + rect.height / 2 + vertical2;
+            framesReturn.push({ offset: t2, left: leftPos2 + 'px', top: topPos2 + 'px', transform: 'translate(-50%, -50%)' });
+          }
+          // 最後はターゲット位置にぴったり合わせる
+          framesReturn.push({ offset: 1, left: targetLeft + 'px', top: (rect.top + rect.height / 2) + 'px', transform: 'translate(-50%, -50%)' });
+
+          const returnAnim = returnClone.animate(framesReturn, { duration, easing: 'linear' });
+
+          returnAnim.onfinish = () => {
+            // 一瞬止めてから削除して元に戻す
+            setTimeout(() => {
+              returnClone.remove();
+              // 元の要素をフェードインで復帰
+              // フェードインアニメが走っていればキャンセルして最終状態を維持
+              if (el._returnOpacityAnim) {
+                try { el._returnOpacityAnim.cancel(); } catch (e) {}
+                delete el._returnOpacityAnim;
+              }
+              // 万一 opacity が unset だった場合に備え、確実に見えるようにしておく
+              el.style.opacity = '1';
+
+              el.classList.remove('fade-in');
+              void el.offsetWidth;
+              el.classList.add('fade-in');
+
+              const onAnimEnd = () => {
+                el.classList.remove('fade-in');
+                // フェードインが終わったらインライン opacity を解除して通常状態に戻す
+                el.style.opacity = '';
+                el.style.width = '';
+                el.style.height = '';
+                el.style.boxSizing = '';
+                el.style.display = '';
+                el.removeEventListener('animationend', onAnimEnd);
+              };
+              el.addEventListener('animationend', onAnimEnd);
+              delete el._bounceTimeout;
+            }, endHold);
+          };
+        }, endHold);
+      };
+
+      // 小さなハイライト
+      bouncing.classList.add('bouncing-hit');
+      setTimeout(() => bouncing.classList.remove('bouncing-hit'), 360);
+
     });
   }
 
@@ -320,53 +488,70 @@ document.addEventListener('DOMContentLoaded', function() {
       const rect = el.getBoundingClientRect();
       const baseColor = window.getComputedStyle(el).color || '#000';
 
-      // 元の文字を消す
+      // 要素のサイズを固定してレイアウトずれを防止
+      el.style.width = rect.width + 'px';
+      el.style.height = rect.height + 'px';
+      el.style.boxSizing = 'border-box';
+      el.style.display = el.style.display || 'inline-block';
+
+      // 元の文字を消す（表示は消えるがレイアウトは維持される）
       el.style.opacity = '0';
 
-      // 断片を増やして小さくする
-      const count = 90;
+      // テキストをオフスクリーン canvas に描画してピクセル単位で断片を生成（文字自体が崩れるように）
+      const canvas = document.createElement('canvas');
+      const canvasW = Math.max(2, Math.round(rect.width));
+      const canvasH = Math.max(2, Math.round(rect.height));
+      canvas.width = canvasW;
+      canvas.height = canvasH;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = baseColor;
+      const cs = window.getComputedStyle(el);
+      ctx.textBaseline = 'top';
+      ctx.font = cs.font || `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      ctx.fillText(el.textContent, 0, 0);
+
+      const img = ctx.getImageData(0, 0, canvasW, canvasH).data;
+      const step = 4; // サンプリング解像度（小さいほど断片が多い）
       let maxDelay = 0;
-      for (let i = 0; i < count; i++) {
-        const p = document.createElement('span');
-        p.className = 'collapse-particle';
 
-        // 小さめの断片サイズに調整
-        const w = 3 + Math.random() * 6;
-        const h = 3 + Math.random() * 6;
-        p.style.width = w + 'px';
-        p.style.height = h + 'px';
-        p.style.background = baseColor;
-        // 少しだけブラー率を増やして自然な見た目に
-        if (Math.random() < 0.4) p.classList.add('collapse-blur');
+      for (let yy = 0; yy < canvasH; yy += step) {
+        for (let xx = 0; xx < canvasW; xx += step) {
+          const idx = (yy * canvasW + xx) * 4;
+          // アルファ値で描画されている部分だけ断片化
+          if (img[idx + 3] > 128) {
+            const p = document.createElement('span');
+            p.className = 'collapse-particle';
+            const size = Math.max(2, Math.floor(step * (0.7 + Math.random() * 0.6)));
+            p.style.width = size + 'px';
+            p.style.height = size + 'px';
+            p.style.background = baseColor;
+            if (Math.random() < 0.35) p.classList.add('collapse-blur');
 
-        // distribute fragments from top → bottom using index fraction for a collapsing wave
-        const frac = i / count;
-        const jitterX = (Math.random() - 0.5) * rect.width * 0.15; // small horizontal jitter
-        const startX = rect.left + rect.width * frac + jitterX;
-        // vertical mapped along element height with small jitter
-        const jitterY = (Math.random() - 0.5) * Math.min(12, rect.height * 0.08);
-        const startY = rect.top + rect.height * frac + jitterY;
-        p.style.left = startX + 'px';
-        p.style.top = startY + 'px';
-        p.style.opacity = '1';
+            const startX = rect.left + xx;
+            const startY = rect.top + yy;
+            p.style.left = startX + 'px';
+            p.style.top = startY + 'px';
+            p.style.opacity = '1';
 
-        document.body.appendChild(p);
+            document.body.appendChild(p);
 
-        // target fall position (below viewport)
-        const endY = window.innerHeight + 120 + Math.random() * 500;
-        const endX = startX + (Math.random() - 0.5) * 220;
-        const rotate = (Math.random() - 0.5) * 720;
-        const duration = 900 + Math.random() * 900;
-        // stagger the start so top fragments begin earlier and the effect propagates downward
-        const delay = frac * 800 + Math.random() * 160;
-        if (delay + duration > maxDelay) maxDelay = delay + duration;
+            // 下に落ちる目標位置
+            const endY = window.innerHeight + 120 + Math.random() * 500;
+            const endX = startX + (Math.random() - 0.5) * 220;
+            const rotate = (Math.random() - 0.5) * 720;
+            const duration = 900 + Math.random() * 1100;
+            // 上→下の伝播に合わせた遅延
+            const delay = (yy / canvasH) * 800 + Math.random() * 160;
+            if (delay + duration > maxDelay) maxDelay = delay + duration;
 
-        const anim = p.animate([
-          { left: startX + 'px', top: startY + 'px', transform: 'translate(-50%, -50%) rotate(0deg) scale(1)', opacity: 1 },
-          { left: endX + 'px', top: endY + 'px', transform: `translate(-50%, -50%) rotate(${rotate}deg) scale(0.8)`, opacity: 0 }
-        ], { duration, easing: 'cubic-bezier(0.2,0.8,0.2,1)', delay });
+            const anim = p.animate([
+              { left: startX + 'px', top: startY + 'px', transform: 'translate(-50%, -50%) rotate(0deg) scale(1)', opacity: 1 },
+              { left: endX + 'px', top: endY + 'px', transform: `translate(-50%, -50%) rotate(${rotate}deg) scale(0.8)`, opacity: 0 }
+            ], { duration, easing: 'cubic-bezier(0.2,0.8,0.2,1)', delay });
 
-        anim.onfinish = () => p.remove();
+            anim.onfinish = () => p.remove();
+          }
+        }
       }
 
       // 元の文字は、すべてのアニメーションが終わったあとに少し待ってフェードイン
@@ -374,7 +559,16 @@ document.addEventListener('DOMContentLoaded', function() {
         el.classList.remove('fade-in');
         void el.offsetWidth;
         el.classList.add('fade-in');
-        const onAnimEnd = () => { el.classList.remove('fade-in'); el.style.opacity = ''; el.removeEventListener('animationend', onAnimEnd); };
+        const onAnimEnd = () => { 
+          el.classList.remove('fade-in'); 
+          el.style.opacity = ''; 
+          // 撤回したインライン幅・高さ等を解除
+          el.style.width = '';
+          el.style.height = '';
+          el.style.boxSizing = '';
+          el.style.display = '';
+          el.removeEventListener('animationend', onAnimEnd); 
+        };
         el.addEventListener('animationend', onAnimEnd);
         delete el._collapseTimeout;
       }, Math.max(1500, maxDelay + 300));

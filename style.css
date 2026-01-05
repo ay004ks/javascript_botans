@@ -9,31 +9,48 @@ h2{
     color: #ff0000;
 }
 
-main {
-    text-align: center;
-    margin-top: 50px;
-} 
+html, body { height: 100%; margin: 0; padding: 0; }
+body { min-height: 100vh; }
 
-/* ギャラリー風: main 内の要素を 3 列に配置 */
-main.gallery {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  align-items: start;
-  justify-items: center;
+main {
+  text-align: center;
+  margin: 8px 0; /* ページの余白を小さくして余計な空白を取り除く */
+  padding: 0;
 }
 
-/* 各アイテムのカード風スタイル */
+/* ギャラリー風: main 内の要素を 3 列に配置 (レスポンシブで文字サイズが画面に合わせて変形するように) */
+main.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;              /* 余計な空白を減らす */
+  padding: 8px;
+  align-items: center;
+  justify-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  /* 画面全体に均等に配置するための調整 */
+  min-height: calc(100vh - 120px); /* ヘッダ等を除いた領域を満たす */
+  align-content: space-evenly;     /* 行間を均等に分配 */
+  justify-content: center;
+  grid-auto-rows: minmax(48px, auto);
+}
+
+/* 各アイテムは幅いっぱいに広がり、文字サイズは画面に合わせて変化 */
 main.gallery > p {
-  /* 背景色を消す */
   background: transparent;
-  padding: 12px 16px;
-  border-radius: 8px;
+  padding: 0.6rem;
+  border-radius: 6px;
   margin: 0;
-  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  font-size: clamp(18px, 4vw, 36px); /* ビューポートに応じて拡大/縮小 */
+  line-height: 1;
+  white-space: nowrap;          /* 改行を防いで横方向に収める */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 800px) {
@@ -231,4 +248,48 @@ body.lightning-mode #lightning-text {
 /* オプション: もっとボヤけた見た目にする */
 .collapse-blur {
   filter: blur(0.8px);
+}
+
+/* 弾む用スタイル */
+#bouncing-text {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.bouncing-clone {
+  position: fixed;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  will-change: left, top, transform, opacity;
+  z-index: 9999;
+}
+
+/* 画面端で文字が縦書きになってしまう問題を防ぐ */
+.bouncing-clone,
+.bouncing-clone span,
+.split-clone,
+.assembling-particle,
+#bouncing-text,
+#collapsing-text {
+  writing-mode: horizontal-tb !important; /* 横書きに固定 */
+  text-orientation: mixed !important; /* グリフの向きを自然に保つ */
+  white-space: nowrap !important; /* 改行させない */
+}
+
+/* 一時的に要素を強制非表示にする（戻るまで表示させない） */
+.temp-invisible {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* 短いハイライト */
+.bouncing-hit {
+  animation: bouncing-hit 0.36s ease;
+}
+
+@keyframes bouncing-hit {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.06); }
+  100% { transform: translate(-50%, -50%) scale(1); }
 }
