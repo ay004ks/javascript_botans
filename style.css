@@ -1,0 +1,234 @@
+@charset "UTF-8";
+
+header {
+    text-align: center;
+}
+
+h2{
+    font-size: 25px;
+    color: #ff0000;
+}
+
+main {
+    text-align: center;
+    margin-top: 50px;
+} 
+
+/* ギャラリー風: main 内の要素を 3 列に配置 */
+main.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  align-items: start;
+  justify-items: center;
+}
+
+/* 各アイテムのカード風スタイル */
+main.gallery > p {
+  /* 背景色を消す */
+  background: transparent;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 0;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 800px) {
+  main.gallery {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  main.gallery {
+    grid-template-columns: 1fr;
+  }
+}
+
+.falling {
+  position: fixed;
+  font-size: 32px;
+  font-weight: bold;
+  pointer-events: none;
+  animation: fall-down 2s ease-in forwards;
+}
+
+@keyframes fall-down {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(500px);
+  }
+}
+
+/* フェードイン用アニメーション */
+/* どの要素でも使える汎用クラスとして .fade-in を追加（.char.fade-in と同じ挙動） */
+.char.fade-in, .fade-in {
+  animation: fade-in 0.8s ease forwards;
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 回転用スタイル */
+.spin-single {
+  display: inline-block;
+  transform-origin: center center;
+  animation: spin-single 0.6s ease forwards;
+}
+
+@keyframes spin-single {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ライティング用スタイル */
+body.lightning-mode {
+  background-color: #000000;
+}
+
+body.lightning-mode #lightning-text {
+  color: #ffffff;
+}
+
+/* 引き延ばし用スタイル */
+#extending-text {
+  display: inline-block;
+  transition: transform 0.6s ease, letter-spacing 0.6s ease;
+}
+
+#extending-text.stretching {
+  transform: scaleX(1.5);
+  letter-spacing: 15px;
+}
+
+/* 振動用スタイル */
+#vibrating-text {
+  display: inline-block;
+  cursor: pointer;
+  will-change: transform;
+}
+
+/* ホールド中はずっと振動する（infinite） */
+#vibrating-text.vibrating {
+  animation: vibrate 0.6s linear infinite;
+}
+
+@keyframes vibrate {
+  0% { transform: translate(0,0) rotate(0); }
+  10% { transform: translate(-1px, -1px) rotate(-1deg); }
+  20% { transform: translate(1px, 1px) rotate(1deg); }
+  30% { transform: translate(-1px, 1px) rotate(-1deg); }
+  40% { transform: translate(1px, -1px) rotate(1deg); }
+  50% { transform: translate(-1px, 0) rotate(0); }
+  60% { transform: translate(1px, 1px) rotate(1deg); }
+  70% { transform: translate(-1px, -1px) rotate(-1deg); }
+  80% { transform: translate(1px, 0) rotate(0); }
+  90% { transform: translate(-1px, 1px) rotate(-1deg); }
+  100% { transform: translate(0,0) rotate(0); }
+}
+
+/* 集まる用スタイル */
+#assembling-text {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.assembling-particle {
+  position: fixed;
+  font-size: 22px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  will-change: left, top, transform, opacity;
+  color: inherit;
+  opacity: 0;
+}
+
+.assemble-hit {
+  animation: assemble-hit 0.36s ease;
+}
+
+@keyframes assemble-hit {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+} 
+
+/* 崩れる用スタイル */
+#collapsing-text {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.collapse-particle {
+  position: fixed;
+  pointer-events: none;
+  will-change: left, top, transform, opacity;
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(0deg);
+  background: currentColor;
+}
+
+/* オプション: もっとボヤけた見た目にする */
+.collapse-blur {
+  filter: blur(0.8px);
+  display: inline-block;
+  cursor: pointer;
+}
+
+.split-clone {
+  position: fixed;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  will-change: transform, opacity, left, top;
+  z-index: 9999;
+}
+
+.split-clone .split-text {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* 上半分だけ表示 */
+.split-clone.top {
+  clip-path: inset(0 0 50% 0);
+}
+
+/* 下半分だけ表示 */
+.split-clone.bottom {
+  clip-path: inset(50% 0 0 0);
+}
+
+/* 崩れる用スタイル */
+#collapsing-text {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.collapse-particle {
+  position: fixed;
+  pointer-events: none;
+  will-change: left, top, transform, opacity;
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(0deg);
+  background: currentColor;
+}
+
+/* オプション: もっとボヤけた見た目にする */
+.collapse-blur {
+  filter: blur(0.8px);
+}
