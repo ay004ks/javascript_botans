@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function() {
       frames.push({ offset: 1, left: endLeft + 'px', top: (rect.top + rect.height / 2 + 40) + 'px', transform: 'translate(-50%, -50%)' });
 
       // 横移動の速度減衰を消すためイージングを linear に設定
-      const endHold = 600; // 終了時に一瞬止める時間（ms）
+      const endHold = 16; // 終了時に一瞬止める時間（ms）→ さらに短縮（16ms）
       const anim = clone.animate(frames, { duration, easing: 'linear' });
 
       anim.onfinish = () => {
@@ -405,17 +405,16 @@ document.addEventListener('DOMContentLoaded', function() {
           returnClone.innerHTML = `<span>${el.textContent}</span>`;
           document.body.appendChild(returnClone);
 
-          // 元の要素を戻ってくる間に可視化しておく（透明→不透明で自然に見える）
+          // 元の要素は非表示のまま維持し、復路アニメーション終了後にフェードインさせる
           el.classList.remove('temp-invisible');
+          // ここでは透明にしておくだけ（復路アニメーションが終わってからフェードイン）
           el.style.opacity = '0';
+          // 既存の準備アニメーションがあればキャンセルしておく
           if (el._returnOpacityAnim) {
-            el._returnOpacityAnim.cancel();
+            try { el._returnOpacityAnim.cancel(); } catch (e) {}
             delete el._returnOpacityAnim;
           }
-          // duration と同じ長さで漸次表示させる（停留時間も考慮して持続させる）
-          el._returnOpacityAnim = el.animate([
-            { opacity: 0 }, { opacity: 1 }
-          ], { duration: duration + endHold, easing: 'linear', fill: 'forwards' });
+          // フェードインは return アニメーションが完了した後で実行します（下の onfinish 側で行う）
 
           // 右から入るフレームを生成（左へ移動）
           const framesReturn = [];
@@ -432,35 +431,32 @@ document.addEventListener('DOMContentLoaded', function() {
           const returnAnim = returnClone.animate(framesReturn, { duration, easing: 'linear' });
 
           returnAnim.onfinish = () => {
-            // 一瞬止めてから削除して元に戻す
-            setTimeout(() => {
-              returnClone.remove();
-              // 元の要素をフェードインで復帰
-              // フェードインアニメが走っていればキャンセルして最終状態を維持
-              if (el._returnOpacityAnim) {
-                try { el._returnOpacityAnim.cancel(); } catch (e) {}
-                delete el._returnOpacityAnim;
-              }
-              // 万一 opacity が unset だった場合に備え、確実に見えるようにしておく
-              el.style.opacity = '1';
+            // 直ちに返却クローンを削除し、元の要素をフェードインで復帰させる
+            returnClone.remove();
+            // フェードインアニメが走っていればキャンセルして最終状態を維持
+            if (el._returnOpacityAnim) {
+              try { el._returnOpacityAnim.cancel(); } catch (e) {}
+              delete el._returnOpacityAnim;
+            }
+            // フェードインをここで開始するため、確実に非表示にしてから .fade-in を付与
+            el.style.opacity = '0';
 
+            el.classList.remove('fade-in');
+            void el.offsetWidth;
+            el.classList.add('fade-in');
+
+            const onAnimEnd = () => {
               el.classList.remove('fade-in');
-              void el.offsetWidth;
-              el.classList.add('fade-in');
-
-              const onAnimEnd = () => {
-                el.classList.remove('fade-in');
-                // フェードインが終わったらインライン opacity を解除して通常状態に戻す
-                el.style.opacity = '';
-                el.style.width = '';
-                el.style.height = '';
-                el.style.boxSizing = '';
-                el.style.display = '';
-                el.removeEventListener('animationend', onAnimEnd);
-              };
-              el.addEventListener('animationend', onAnimEnd);
-              delete el._bounceTimeout;
-            }, endHold);
+              // フェードインが終わったらインライン opacity を解除して通常状態に戻す
+              el.style.opacity = '';
+              el.style.width = '';
+              el.style.height = '';
+              el.style.boxSizing = '';
+              el.style.display = '';
+              el.removeEventListener('animationend', onAnimEnd);
+            };
+            el.addEventListener('animationend', onAnimEnd);
+            delete el._bounceTimeout;
           };
         }, endHold);
       };
